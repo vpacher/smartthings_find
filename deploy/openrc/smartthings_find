@@ -1,0 +1,58 @@
+#!/sbin/openrc-run
+# OpenRC service for smartthings_find (Alpine and other OpenRC systems).
+#
+# Layout (CONF_DIR, default /etc/smartthings_find):
+#   service.env   MQTT_* (and optionally STF_HEARTBEAT_URL) as shell-quoted
+#                 assignments (mode 600, root).
+#                 Written by $FETCH_SECRETS before every start if that script
+#                 exists, else maintained by hand.
+#   cookie/       owned by the service user (mode 700). Holds the JSESSIONID
+#                 file. The service rewrites it when Samsung rotates the cookie
+#                 or a new one is set from Home Assistant, so it must be
+#                 writable by the service user and kept across restarts.
+#
+# The service runs as an unprivileged user and never sees service.env itself,
+# only the exported variables.
+
+name="smartthings_find"
+description="Samsung SmartThings Find to Home Assistant (MQTT discovery)"
+
+: "${CONF_DIR:=/etc/smartthings_find}"
+: "${SERVICE_USER:=smartthings_find}"
+: "${FETCH_SECRETS:=/usr/local/bin/smartthings_find-fetch-secrets.sh}"
+
+command="/usr/local/bin/smartthings_find"
+command_args="serve"
+command_user="${SERVICE_USER}:${SERVICE_USER}"
+supervisor="supervise-daemon"
+directory="${CONF_DIR}/cookie"
+pidfile="/run/smartthings_find.pid"
+# stdout/stderr to syslog. The real level is in each line (tracing).
+output_logger="logger -t smartthings_find -p daemon.info"
+error_logger="logger -t smartthings_find -p daemon.err"
+respawn_max=0
+respawn_period=10
+respawn_delay=5
+
+depend() {
+	need net
+	use logger dns
+}
+
+start_pre() {
+	if [ -x "$FETCH_SECRETS" ]; then
+		"$FETCH_SECRETS" "${CONF_DIR}/service.env" || return 1
+	fi
+	if [ ! -f "${CONF_DIR}/service.env" ]; then
+		eerror "${CONF_DIR}/service.env is missing"
+		return 1
+	fi
+	if [ ! -s "${CONF_DIR}/cookie/jsessionid" ]; then
+		ewarn "no session cookie at ${CONF_DIR}/cookie/jsessionid; set one from Home Assistant or save it there"
+	fi
+	. "${CONF_DIR}/service.env"
+	export MQTT_HOST MQTT_PORT MQTT_USERNAME MQTT_PASSWORD
+	[ -z "${STF_HEARTBEAT_URL:-}" ] || export STF_HEARTBEAT_URL
+	export STF_JSESSIONID_FILE="${CONF_DIR}/cookie/jsessionid"
+	export NO_COLOR=1
+}
