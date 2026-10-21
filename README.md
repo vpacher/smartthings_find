@@ -99,7 +99,7 @@ The cookie goes from Home Assistant to the service over MQTT and is never retain
 
 ## Deploy (OpenRC)
 
-`build.sh` runs clippy and the tests, then cross-compiles a static `x86_64-unknown-linux-musl` binary with [`cross`](https://github.com/cross-rs/cross). `deploy/deploy.sh user@host` builds, copies the binary, the OpenRC script and the secrets helper to the host, and restarts the service. It creates the `smartthings_find` system user and the directories if they are missing.
+`build.sh` runs clippy and the tests, then cross-compiles a static-pie `x86_64-unknown-linux-musl` binary with [`cargo-zigbuild`](https://github.com/rust-cross/cargo-zigbuild) (needs `zig`). `BUILD=cross ./build.sh` uses [`cross`](https://github.com/cross-rs/cross) instead (needs podman or docker). `deploy/deploy.sh user@host` builds, copies the binary, the OpenRC script and the secrets helper to the host, and restarts the service. It creates the `smartthings_find` system user and the directories if they are missing.
 
 On the host, `/etc/smartthings_find` holds:
 
